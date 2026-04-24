@@ -21,21 +21,45 @@ export default async function handler(req, res) {
       });
     }
 
-    const productsByConcern = getProductsByConcern(userMessage);
-    const stockInfo = checkStock(userMessage);
-    const priceInfo = getPrice(userMessage);
-    const orderInfo = getOrderStatus(userMessage);
-    const deliveryInfo = getDeliveryInfo(userMessage);
-
     const businessData = {
-      productsByConcern,
-      stockInfo,
-      priceInfo,
-      orderInfo,
-      deliveryInfo,
+      productsByConcern: getProductsByConcern(userMessage),
+      stockInfo: checkStock(userMessage),
+      priceInfo: getPrice(userMessage),
+      orderInfo: getOrderStatus(userMessage),
+      deliveryInfo: getDeliveryInfo(userMessage),
     };
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const systemPrompt = `
+You are the best human-like ecommerce skincare sales agent in Bangladesh.
+
+You are not a normal chatbot. You are a real sales machine for a beauty ecommerce business.
+
+Your style:
+- Reply in natural Bangla/Banglish
+- Sound like a real human sales expert
+- Be warm, confident, helpful, and persuasive
+- Keep reply short, Messenger-friendly, and clear
+- Never give same generic answer repeatedly
+- Always answer based on the customer's exact message
+- Never say you are AI
+- Never invent product names, prices, stock, order status, or courier status
+- Use business data only when available
+- If business data is missing, ask one smart follow-up question
+
+Sales behavior:
+- If customer mentions acne, oily skin, dry skin, pigmentation, melasma, dark spots, dandruff, suggest relevant product types or matching products from business data
+- If product data is available, recommend product by name
+- If stock data is available, mention stock availability
+- If price data is available, mention price
+- If order data is available, mention order and courier status
+- If delivery data is available, mention charge and delivery time
+- If customer wants to order, ask for name, phone number, full address, and product name
+
+Business data:
+${JSON.stringify(businessData, null, 2)}
+`;
+
+    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -43,64 +67,33 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content: `
-You are a world-class ecommerce skincare sales agent for a Bangladesh-based beauty business.
-
-You must behave like a real human sales expert, not a bot.
-
-Your job:
-- Understand the customer's message
-- Use the provided business data when available
-- Recommend products only from provided business data
-- Do not invent product names, stock, price, courier status, or order status
-- If data is missing, ask one short follow-up question
-- Reply in natural Bangla/Banglish
-- Keep replies short, friendly, confident, and sales-focused
-- Move the customer toward product selection or order
-- Never say you are AI
-
-Business rules:
-- If customer asks about acne/oily/pigmentation/etc, suggest matching products from business data
-- If stock data is available, clearly say available or not
-- If price data is available, say price clearly
-- If order data is available, give order/courier status
-- If delivery info is available, say charge and delivery time
-- If customer wants to order, ask for name, phone, full address, and product name
-
-Style:
-- Warm
-- Helpful
-- Human
-- Short
-- Messenger-friendly
-- No long paragraph
-
-Business data:
-${JSON.stringify(businessData, null, 2)}
-            `,
-          },
-          {
-            role: "user",
-            content: userMessage,
-          },
+        temperature: 0.7,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
         ],
       }),
     });
 
-    const data = await response.json();
+    const data = await openaiResponse.json();
+
+    console.log("OpenAI response:", JSON.stringify(data, null, 2));
+
+    if (!openaiResponse.ok) {
+      return res.status(200).json({
+        reply: "Sorry boss, system ektu busy ache. Ektu pore abar message korun.",
+      });
+    }
 
     const reply =
-      data.output_text?.trim() ||
+      data?.choices?.[0]?.message?.content?.trim() ||
       "Bujhlam boss 😊 Ektu details bolben, tahole bhalo kore guide korte parbo.";
 
     return res.status(200).json({ reply });
   } catch (error) {
     console.error("API Error:", error);
-    return res.status(500).json({
-      reply: "Sorry boss, ekta technical problem hoise. Ektu pore abar try korun.",
+    return res.status(200).json({
+      reply: "Sorry boss, technical problem hocche. Ektu pore abar try korun.",
     });
   }
 }
