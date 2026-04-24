@@ -79,12 +79,13 @@ ${JSON.stringify(businessData, null, 2)}
 
     console.log("OpenAI response:", JSON.stringify(data, null, 2));
 
-    if (!openaiResponse.ok) {
-      return res.status(200).json({
-        reply: "Sorry boss, system ektu busy ache. Ektu pore abar message korun.",
-      });
-    }
+   if (!openaiResponse.ok) {
+  console.log("OpenAI Error:", JSON.stringify(data, null, 2));
 
+  return res.status(200).json({
+    reply: `OpenAI error: ${data?.error?.message || "Unknown error"}`,
+  });
+}
     const reply =
       data?.choices?.[0]?.message?.content?.trim() ||
       "Bujhlam boss 😊 Ektu details bolben, tahole bhalo kore guide korte parbo.";
